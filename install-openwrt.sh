@@ -1,25 +1,26 @@
 #!/bin/sh
 set -e
 
-BIN="/usr/sbin/dnsproxy"
+BIN="/usr/bin/dnsproxy"
 CONF_DIR="/etc/dnsproxy"
 CONF_FILE="$CONF_DIR/config.yaml"
 INIT_FILE="/etc/init.d/dnsproxy"
+LOG_DIR="/var/log/dnsproxy"
 
-# 依赖（curl 用来拿 latest 重定向；tar 解包；ca-bundle 走 https）
+# 依赖（HTTPS/Wget/证书/Tar/Curl）
 opkg update
-opkg install curl ca-bundle ca-certificates tar wget-ssl >/dev/null 2>&1 || true
+opkg install wget-ssl ca-bundle ca-certificates curl tar >/dev/null 2>&1 || true
 
 # 架构映射
 ARCH="$(uname -m)"
 case "$ARCH" in
   x86_64|amd64) BUILD="linux-amd64" ;;
   aarch64|arm64) BUILD="linux-arm64" ;;
-  armv7l|armv7)  BUILD="linux-armv7" ;;
+  armv7l|armv7)  BUILD="linux-armv7"  ;;
   *) echo "Unsupported arch: $ARCH"; exit 1 ;;
 esac
 
-# 获取最新 tag（不走 GitHub API）
+# 获取最新 tag（不走 API，跟随 /latest 跳转）
 LATEST_URL="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/AdguardTeam/dnsproxy/releases/latest)"
 TAG="${LATEST_URL##*/}"
 [ -n "$TAG" ] && [ "$TAG" != "latest" ] || { echo "Failed to resolve latest tag"; exit 1; }
@@ -34,11 +35,15 @@ if ! wget -qO /tmp/dnsproxy.tgz "$URL"; then
 fi
 
 echo "Installing binary..."
+rm -f /tmp/dnsproxy
 tar -xzf /tmp/dnsproxy.tgz -C /tmp
-install -m 0755 /tmp/dnsproxy "$BIN"
+cp /tmp/dnsproxy "$BIN"
+chmod 0755 "$BIN"
 
-# 创建工作目录 & 默认配置（如不存在则写一个很小的模板）
-mkdir -p "$CONF_DIR"
+# 创建工作目录和日志目录
+mkdir -p "$CONF_DIR" "$LOG_DIR"
+
+# 默认配置文件（仅在不存在时创建）
 if [ ! -f "$CONF_FILE" ]; then
   cat > "$CONF_FILE" <<'EOF'
 listen-addrs:
@@ -56,7 +61,7 @@ output: /var/log/dnsproxy/log.log
 EOF
 fi
 
-echo "Writing init.d service..."
+# 强制覆盖 init.d 服务脚本
 cat > "$INIT_FILE" <<'EOF'
 #!/bin/sh /etc/rc.common
 # dnsproxy (procd)
@@ -65,7 +70,7 @@ START=95
 STOP=10
 USE_PROCD=1
 
-PROG="$(command -v dnsproxy || echo /usr/sbin/dnsproxy)"
+PROG="$(command -v dnsproxy || echo /usr/bin/dnsproxy)"
 CONFIG="/etc/dnsproxy/config.yaml"
 
 start_service() {
@@ -86,8 +91,9 @@ reload_service() {
 	restart
 }
 EOF
-
 chmod +x "$INIT_FILE"
+
+# 启用并重启服务
 /etc/init.d/dnsproxy enable
 /etc/init.d/dnsproxy restart
 
@@ -95,4 +101,7 @@ echo "✅ Installed/updated dnsproxy ($TAG)."
 echo "Binary : $BIN"
 echo "Workdir: $CONF_DIR"
 echo "Config : $CONF_FILE"
+echo "LogDir : $LOG_DIR"
 echo "Service: /etc/init.d/dnsproxy (enable/start/stop/restart/status)"
+echo
+echo "查看日志: tail -f /var/log/dnsproxy/log.log"
