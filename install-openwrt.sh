@@ -35,9 +35,11 @@ if ! wget -qO /tmp/dnsproxy.tgz "$URL"; then
 fi
 
 echo "Installing binary..."
-rm -f /tmp/dnsproxy
+# 解压并自动找到真实二进制
 tar -xzf /tmp/dnsproxy.tgz -C /tmp
-cp /tmp/dnsproxy "$BIN"
+BIN_SRC="$(find /tmp -maxdepth 1 -type f -name 'dnsproxy*' | head -n1)"
+[ -f "$BIN_SRC" ] || { echo "Error: dnsproxy binary not found after extraction"; exit 1; }
+cp "$BIN_SRC" "$BIN"
 chmod 0755 "$BIN"
 
 # 创建工作目录和日志目录
