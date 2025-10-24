@@ -61,9 +61,27 @@ mkdir -p "$CONF_DIR"
 if [[ ! -f "$CONF_FILE" ]]; then
   cat > "$CONF_FILE" <<EOF
 # 默认配置文件
-listen-addrs: [127.0.0.1]
-listen-ports: [53]
-bootstrap: [8.8.8.8, 1.1.1.1]
+listen-addrs:
+  - 127.0.0.1
+listen-ports:
+  - 53
+
+upstream:
+  - "https://dns.google/dns-query"
+  - "https://dns.cloudflare.com/dns-query"
+  - "https://dns.quad9.net/dns-query"
+  - "quic://dns.adguard-dns.com"
+
+http3: true
+
+# 并发模式
+# upstream-mode: parallel
+
+bootstrap:
+  - "8.8.8.8:53"
+
+# 日志
+output: log.log
 EOF
 fi
 
