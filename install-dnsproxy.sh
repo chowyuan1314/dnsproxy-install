@@ -14,11 +14,11 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-# 仅安装必要工具（静默）
+# 尽量静默装工具
 apt update -y >/dev/null 2>&1 || true
 apt install -y curl wget tar libcap2-bin >/dev/null 2>&1 || true
 
-# 映射架构到正确的包名片段（注意是连字符 linux-amd64 / linux-arm64 / linux-armv7）
+# 映射架构到正确的包名片段（连字符）
 arch="$(uname -m)"
 case "$arch" in
   x86_64|amd64) build="linux-amd64" ;;
@@ -27,18 +27,25 @@ case "$arch" in
   *) echo "❌ 不支持的架构: $arch"; exit 1 ;;
 esac
 
-# 通过 releases/latest 跟随跳转，拿到最终 URL，从中提取 tag（例如 v0.77.0）
+# 通过 /releases/latest 取最终跳转 URL，再抽取 tag（如 v0.77.0）
 latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/AdguardTeam/dnsproxy/releases/latest)"
 tag="${latest_url##*/}"
 if [[ -z "$tag" || "$tag" == "latest" ]]; then
-  echo "❌ 无法获取最新版本标签"; exit 1
+  echo "❌ 无法获取最新版本标签（可能被拦，或 GitHub 改版）。"
+  exit 1
 fi
 
 pkg="dnsproxy-${build}-${tag}.tar.gz"
 url="https://github.com/AdguardTeam/dnsproxy/releases/download/${tag}/${pkg}"
 
 echo "📦 下载 dnsproxy ${tag} (${build}) ..."
-wget -qO "${TMP_DIR}/${pkg}" "$url" || { echo "❌ 下载失败：$url"; exit 1; }
+if ! wget -qO "${TMP_DIR}/${pkg}" "$url"; then
+  echo "❌ 下载失败：$url"
+  echo "🔎 调试建议：先试试 curl -I \"$url\" 看返回码是否为 200。"
+  echo "🌐 如果网络限制，可用代理镜像："
+  echo "    wget -O ${TMP_DIR}/${pkg} https://ghproxy.net/${url}"
+  exit 1
+fi
 
 echo "📂 解压并安装..."
 tar -xzf "${TMP_DIR}/${pkg}" -C "${TMP_DIR}"
@@ -77,7 +84,7 @@ echo
 echo "✅ 安装完成"
 echo "版本: $tag"
 echo "二进制: $BIN_PATH"
-echo "配置:   $CONF_FILE   （脚本不改动它）"
+echo "配置:   $CONF_FILE   （脚本不会改动它）"
 echo "服务:   $UNIT_FILE"
 echo
 echo "修改配置后重启： systemctl restart dnsproxy"
