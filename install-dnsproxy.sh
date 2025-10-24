@@ -75,7 +75,7 @@ upstream:
 http3: true
 
 # 并发模式
-# upstream-mode: parallel
+upstream-mode: parallel
 
 bootstrap:
   - "8.8.8.8:53"
