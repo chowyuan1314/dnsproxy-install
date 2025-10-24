@@ -1,41 +1,56 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# === 用户自定义 ===
-CONF_FILE="/etc/dnsproxy/dnsproxy.yaml"
+# ==================================================
+# dnsproxy 一键安装（自动拉取最新版）
+# 作者: chowyuan1314
+# ==================================================
 
-# === 系统变量 ===
 BIN_PATH="/usr/local/bin/dnsproxy"
+CONF_FILE="/etc/dnsproxy/dnsproxy.yaml"
 UNIT_FILE="/etc/systemd/system/dnsproxy.service"
 TMP_DIR="$(mktemp -d)"
 
-# === 检查root权限 ===
+# 检查 root
 if [[ $EUID -ne 0 ]]; then
-  echo "请用 root 或 sudo 执行此脚本"
+  echo "❌ 请使用 root 权限执行此脚本"
   exit 1
 fi
 
-# === 安装依赖 ===
-apt update -y
-apt install -y curl wget tar jq libcap2-bin
+# 检查依赖
+apt update -y >/dev/null
+apt install -y curl wget jq tar libcap2-bin >/dev/null
 
-# === 获取最新版URL ===
-echo "获取 dnsproxy 最新版本..."
-URL=$(curl -s https://api.github.com/repos/AdguardTeam/dnsproxy/releases/latest \
-  | jq -r '.assets[] | select(.name | test("linux_amd64.tar.gz$")) | .browser_download_url' | head -n1)
+# 检测架构
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64|amd64) BUILD="linux_amd64" ;;
+  aarch64|arm64) BUILD="linux_arm64" ;;
+  armv7l|armv7) BUILD="linux_armv7" ;;
+  *) echo "❌ 不支持的架构: $ARCH"; exit 1 ;;
+esac
 
-[[ -z "$URL" ]] && { echo "获取下载地址失败"; exit 1; }
+# 获取最新版 tag
+echo "🔍 获取 dnsproxy 最新版本..."
+TAG=$(curl -fsSL https://api.github.com/repos/AdguardTeam/dnsproxy/releases/latest | jq -r .tag_name)
 
-# === 下载并安装 ===
-echo "下载中：$URL"
-wget -qO "$TMP_DIR/dnsproxy.tar.gz" "$URL"
-tar -xzf "$TMP_DIR/dnsproxy.tar.gz" -C "$TMP_DIR"
+if [[ -z "$TAG" || "$TAG" == "null" ]]; then
+  echo "❌ 无法从 GitHub API 获取版本号，请稍后重试或检查网络。"
+  exit 1
+fi
+
+PKG="dnsproxy-${BUILD}-${TAG}.tar.gz"
+URL="https://github.com/AdguardTeam/dnsproxy/releases/download/${TAG}/${PKG}"
+
+echo "📦 下载 ${TAG} (${BUILD})..."
+wget -qO "${TMP_DIR}/${PKG}" "$URL" || { echo "❌ 下载失败: $URL"; exit 1; }
+
+echo "📂 解压安装..."
+tar -xzf "${TMP_DIR}/${PKG}" -C "${TMP_DIR}"
 install -m 0755 $(find "$TMP_DIR" -type f -name dnsproxy) "$BIN_PATH"
-
-# 允许非root绑定53端口
 setcap 'cap_net_bind_service=+ep' "$BIN_PATH" || true
 
-# === 创建systemd服务 ===
+echo "⚙️ 创建 systemd 服务..."
 cat > "$UNIT_FILE" <<EOF
 [Unit]
 Description=AdGuard dnsproxy Service
@@ -54,16 +69,16 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOF
 
-# === 启动并启用 ===
+echo "🚀 启动并启用服务..."
 systemctl daemon-reload
 systemctl enable --now dnsproxy
 systemctl --no-pager status dnsproxy
 
 echo
 echo "✅ 安装完成"
-echo "二进制位置: $BIN_PATH"
-echo "配置文件:   $CONF_FILE"
-echo "systemd服务: dnsproxy"
+echo "版本:   ${TAG}"
+echo "二进制: $BIN_PATH"
+echo "配置:   $CONF_FILE"
 echo
-echo "如需修改配置，请编辑 $CONF_FILE 后执行："
-echo "  systemctl restart dnsproxy"
+echo "如需更新至最新版本，只需再次执行此脚本即可。"
+echo
