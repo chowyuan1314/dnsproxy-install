@@ -35,10 +35,19 @@ if ! wget -qO /tmp/dnsproxy.tgz "$URL"; then
 fi
 
 echo "Installing binary..."
-# 解压并自动找到真实二进制
-tar -xzf /tmp/dnsproxy.tgz -C /tmp
-BIN_SRC="$(find /tmp -maxdepth 1 -type f -name 'dnsproxy*' | head -n1)"
-[ -f "$BIN_SRC" ] || { echo "Error: dnsproxy binary not found after extraction"; exit 1; }
+# 用独立临时目录解压并递归查找二进制
+EXTRACT_DIR="$(mktemp -d /tmp/dnsproxy.XXXXXX)"
+tar -xzf /tmp/dnsproxy.tgz -C "$EXTRACT_DIR"
+
+# 一般路径是 ./linux-*/dnsproxy，这里递归找
+BIN_SRC="$(find "$EXTRACT_DIR" -type f -name dnsproxy | head -n1)"
+if [ ! -f "$BIN_SRC" ]; then
+  echo "Error: dnsproxy binary not found after extraction"
+  echo "Hint: tar -tzf /tmp/dnsproxy.tgz | sed -n '1,20p'"
+  exit 1
+fi
+
+# 安装到 /usr/bin
 cp "$BIN_SRC" "$BIN"
 chmod 0755 "$BIN"
 
@@ -107,3 +116,6 @@ echo "LogDir : $LOG_DIR"
 echo "Service: /etc/init.d/dnsproxy (enable/start/stop/restart/status)"
 echo
 echo "查看日志: tail -f /var/log/dnsproxy/log.log"
+
+# 清理临时目录
+rm -rf "$EXTRACT_DIR" /tmp/dnsproxy.tgz
