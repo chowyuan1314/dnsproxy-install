@@ -60,7 +60,7 @@ if [ ! -f "$CONF_FILE" ]; then
 listen-addrs:
   - 127.0.0.1
 listen-ports:
-  - 53
+  - 1053
 upstream:
   - "quic://dns.alidns.com"
   - "https://dot.pub/dns-query"
