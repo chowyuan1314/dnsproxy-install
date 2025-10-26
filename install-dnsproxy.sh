@@ -64,7 +64,7 @@ if [[ ! -f "$CONF_FILE" ]]; then
 listen-addrs:
   - 127.0.0.1
 listen-ports:
-  - 53
+  - 1053
 
 upstream:
   - "https://dns.google/dns-query"
