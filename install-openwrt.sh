@@ -68,7 +68,7 @@ http3: true
 upstream-mode: parallel
 bootstrap:
   - "tls://223.5.5.5:853"
-output: /var/log/dnsproxy/log.log
+output: /etc/dnsproxy/log.log
 EOF
 fi
 
