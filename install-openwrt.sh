@@ -5,7 +5,6 @@ BIN="/usr/bin/dnsproxy"
 CONF_DIR="/etc/dnsproxy"
 CONF_FILE="$CONF_DIR/config.yaml"
 INIT_FILE="/etc/init.d/dnsproxy"
-LOG_DIR="/var/log/dnsproxy"
 
 # 依赖（HTTPS/Wget/证书/Tar/Curl）
 opkg update
@@ -52,7 +51,7 @@ cp "$BIN_SRC" "$BIN"
 chmod 0755 "$BIN"
 
 # 创建工作目录和日志目录
-mkdir -p "$CONF_DIR" "$LOG_DIR"
+mkdir -p "$CONF_DIR"
 
 # 默认配置文件（仅在不存在时创建）
 if [ ! -f "$CONF_FILE" ]; then
@@ -112,10 +111,7 @@ echo "✅ Installed/updated dnsproxy ($TAG)."
 echo "Binary : $BIN"
 echo "Workdir: $CONF_DIR"
 echo "Config : $CONF_FILE"
-echo "LogDir : $LOG_DIR"
 echo "Service: /etc/init.d/dnsproxy (enable/start/stop/restart/status)"
-echo
-echo "查看日志: tail -f /var/log/dnsproxy/log.log"
 
 # 清理临时目录
 rm -rf "$EXTRACT_DIR" /tmp/dnsproxy.tgz
